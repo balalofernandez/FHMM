@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.distributions import constraints
 import seaborn;
 from pomegranate import *
+
 seaborn.set_style('whitegrid')
 import torch
 import tensorflow as tf
@@ -17,15 +18,14 @@ from matplotlib import pylab as plt
 import scipy.stats as stats
 import scipy.special as special
 
-class GHMM():
+
+class HMM():
+    def __init__(self, initial_state_matrix=None, transition_matrix=None, distributions=None):
+        self.initial_state_matrix = initial_state_matrix
+
+
+class GHMM(HMM):
     def __init__(self, initial_state_matrix, transition_matrix, distributions, observations):
-        """
-        :param initial_state_matrix:
-        :param transition_matrix:
-        :param distributions:
-            the distribution probabilities that are assumed to be a Tensorflow's distribution
-        :return:
-        """
         self.initial_state_matrix = initial_state_matrix
         self.log_start = np.log(initial_state_matrix)
         self.transition_matrix = transition_matrix
@@ -52,15 +52,18 @@ class GHMM():
         for i in range(1, n_obs):
             for j in range(n_states):
                 # alpha[t] = np.matmul(np.matmul(alpha[t-1], transition_matrix) , matrix)
-                alpha_aux = [alpha[k, i - 1] * self.distributions[j].prob(self.observations.iat[i]) * self.transition_matrix[k, j] for
-                             k in
-                             range(n_states)]
+                alpha_aux = [
+                    alpha[k, i - 1] * self.distributions[j].prob(self.observations.iat[i]) * self.transition_matrix[
+                        k, j] for
+                    k in
+                    range(n_states)]
                 alpha[j, i] = sum(alpha_aux)
                 scale[i] += alpha[j, i]
             alpha[:, i] = [alpha[k, i] / scale[i] for k in range(n_states)]
 
         lik = sum(alpha[:, -1])
         return alpha, scale, lik
+
     def backward_probs(self, scale):
         # number of states & observations
         n_states = len(self.initial_state_matrix)
@@ -71,7 +74,7 @@ class GHMM():
         # Compute the backward probabilities recursively
         for i in range(2, n_obs + 1):
             for j in range(n_states):
-                beta_aux = [beta[k, -i + 1] * self.distributions[k].prob(self.observations.iat[-i + 1])\
+                beta_aux = [beta[k, -i + 1] * self.distributions[k].prob(self.observations.iat[-i + 1]) \
                             * self.transition_matrix[j, k]
                             for
                             k in range(n_states)]
@@ -105,8 +108,8 @@ class GHMM():
 
         return gamma
 
-    def baum_welch_normal(self,observations = None,n_iter = 30, verbose=False):
-        #Si nos introducen un vector de observaciones usaremos ese para entrenar el modelo
+    def baum_welch_normal(self, observations=None, n_iter=30, verbose=False):
+        # Si nos introducen un vector de observaciones usaremos ese para entrenar el modelo
         if observations is not None:
             self.observations = observations
         log_verosim = []
@@ -134,7 +137,7 @@ class GHMM():
                     denomenator_a = 0
                     for t in range(self.n_obs - 1):
                         a[j, i] = a[j, i] + xi[j, t, i]
-                        denomenator_a += gamma[j,t]
+                        denomenator_a += gamma[j, t]
 
                     denomenator_b = [xi[j, t_x, i_x] for t_x in range(self.n_obs - 1) for i_x in range(self.num_states)]
                     denomenator_b = sum(denomenator_b)
@@ -176,7 +179,7 @@ class GHMM():
                                 self.distributions[1].scale)
             new_alf, new_scale, new_lik_alpha = self.forward_probs()
             new_log_verosim = np.sum(np.log(new_scale))
-            if (verbose): print('New log-verosim: ',new_log_verosim)
+            if (verbose): print('New log-verosim: ', new_log_verosim)
             diff = np.abs(log_verosim[iteration] - new_log_verosim)
             if (verbose): print('Difference in forward probability: ', diff)
 
@@ -184,16 +187,16 @@ class GHMM():
                 break
         return log_verosim, self.initial_state_matrix, self.transition_matrix, self.distributions
 
-    def viterbi(self, observations = None):
-        #Si nos introducen un vector de observaciones usaremos ese
+    def viterbi(self, observations=None):
+        # Si nos introducen un vector de observaciones usaremos ese
         if observations is not None:
             self.observations = observations
         log_start = np.log(self.initial_state_matrix)
         log_trans = np.log(self.transition_matrix)
-        #Aqui guardamos la probabilidad máxima hasta ese punto
+        # Aqui guardamos la probabilidad máxima hasta ese punto
         vit = [{}]
-        #El camino que hemos llevado hasta la sol
-        #En lugar de quedarnos con el puntero, guardamos todo el camino
+        # El camino que hemos llevado hasta la sol
+        # En lugar de quedarnos con el puntero, guardamos todo el camino
         path = {}
         n_states = len(log_start)
         n_obs = len(self.observations)
@@ -210,7 +213,7 @@ class GHMM():
             updated_path = {}
             for i in range(n_states):
                 (prob, state) = max(
-                    (vit[t - 1][k] + log_trans[k][i] + self.distributions[i].log_prob(self.observations.iat[t]), k)\
+                    (vit[t - 1][k] + log_trans[k][i] + self.distributions[i].log_prob(self.observations.iat[t]), k) \
                     for k in range(n_states))
                 vit[t][i] = prob
                 updated_path[i] = path[state] + [i]
@@ -223,46 +226,47 @@ class GHMM():
         # number of states & observations
         n_states = len(self.log_start)
         n_obs = len(self.observations)
-        log_alpha = np.zeros(( n_states, n_obs))
+        log_alpha = np.zeros((n_states, n_obs))
         scale = np.zeros(n_obs)
         # Calculate the initial forward probabilities
         matrix = [self.distributions[0].log_prob(self.observations.iat[0]),
                   self.distributions[1].log_prob(self.observations.iat[0])]
-        for i,(x, y) in enumerate(zip(self.log_start, matrix)):
+        for i, (x, y) in enumerate(zip(self.log_start, matrix)):
             if x == 0:
-                log_alpha[i,0] = 0
+                log_alpha[i, 0] = 0
             else:
                 log_alpha[i, 0] = x + y
         # Compute the forward probabilities recursively
         for i in range(1, n_obs):
-          for j in range(n_states):
-            log_alpha_aux = []
-            for k in range(n_states):
-                if log_alpha[k,i-1] == 0:
-                    log_alpha_aux.append(0)
-                else:
-                    log_alpha_aux.append(log_alpha[k,i-1]+self.log_transition[k,j])
+            for j in range(n_states):
+                log_alpha_aux = []
+                for k in range(n_states):
+                    if log_alpha[k, i - 1] == 0:
+                        log_alpha_aux.append(0)
+                    else:
+                        log_alpha_aux.append(log_alpha[k, i - 1] + self.log_transition[k, j])
 
-            log_alpha[j,i] = special.logsumexp(log_alpha_aux) +\
-                             self.distributions[j].log_prob(self.observations.iat[i])
+                log_alpha[j, i] = special.logsumexp(log_alpha_aux) + \
+                                  self.distributions[j].log_prob(self.observations.iat[i])
 
-        lik = special.logsumexp(log_alpha[:,-1])
-        return log_alpha,lik
+        lik = special.logsumexp(log_alpha[:, -1])
+        return log_alpha, lik
+
     def backward_logprob(self):
         # number of states & observations
         n_states = len(self.log_start)
         n_obs = len(self.observations)
-        log_beta = np.zeros(( n_states, n_obs))
+        log_beta = np.zeros((n_states, n_obs))
         # Calculate the initial backward probabilities
-        log_beta[:,-1] = [0,0]#log([1,1])
+        log_beta[:, -1] = [0, 0]  # log([1,1])
         # Compute the backward probabilities recursively
-        for i in range(2, n_obs+1):
-          for j in range(n_states):
-            beta_aux = [log_beta[k, -i+1] + self.distributions[k].log_prob(self.observations.iat[-i+1]) +\
-                        self.log_transition[j,k] for k in range(n_states)]
-            log_beta[j, -i] = special.logsumexp(beta_aux)
+        for i in range(2, n_obs + 1):
+            for j in range(n_states):
+                beta_aux = [log_beta[k, -i + 1] + self.distributions[k].log_prob(self.observations.iat[-i + 1]) + \
+                            self.log_transition[j, k] for k in range(n_states)]
+                log_beta[j, -i] = special.logsumexp(beta_aux)
 
-        start_state = [log_beta[k, 0] + self.distributions[k].log_prob(self.observations.iat[0]) +\
+        start_state = [log_beta[k, 0] + self.distributions[k].log_prob(self.observations.iat[0]) + \
                        self.log_start[k] for k in range(n_states)]
         start_state_val = special.logsumexp(start_state)
         return log_beta, start_state_val
@@ -274,7 +278,7 @@ class GHMM():
         log_gamma -= a_lse
         return log_gamma
 
-    def log_xi_sum(self,log_forward, log_backward):
+    def log_xi_sum(self, log_forward, log_backward):
         n_states = log_forward.shape[0]
         n_observations = log_forward.shape[1]
         log_prob = special.logsumexp(log_forward[:, -1])  # lik
@@ -292,8 +296,8 @@ class GHMM():
 
         return xi, xi_sum
 
-    def log_baum_welch_normal(self,observations = None, n_iter=20, verbose=False):
-        #Si nos introducen un vector de observaciones usaremos ese para entrenar el modelo
+    def log_baum_welch_normal(self, observations=None, n_iter=20, verbose=False):
+        # Si nos introducen un vector de observaciones usaremos ese para entrenar el modelo
         if observations is not None:
             self.observations = observations
         n_states = len(self.log_start)
@@ -310,12 +314,12 @@ class GHMM():
             alf, lik = self.forward_logprob()
             log_lik.append(lik)
             beta, lik_b = self.backward_logprob()
-            gamma = self.gamma_logprob(alf,beta)
+            gamma = self.gamma_logprob(alf, beta)
             # Posteriors está al reves que hmmlearn
             posteriors = np.exp(gamma)
             nobs += 1
             new_start += posteriors[:, 0]
-            log_xi, xi_sum = self.log_xi_sum(alf,beta)
+            log_xi, xi_sum = self.log_xi_sum(alf, beta)
             log_gamma0 = special.logsumexp([log_xi[0, t_x, i_x] for t_x in range(n_obs - 1) for i_x in range(n_states)])
             log_gamma1 = special.logsumexp([log_xi[1, t_x, i_x] for t_x in range(n_obs - 1) for i_x in range(n_states)])
             xi00 = special.logsumexp([log_xi[0, x_t, 0] for x_t in range(n_obs - 1)])

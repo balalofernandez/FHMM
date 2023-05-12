@@ -9,6 +9,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy.testing as nptest
 class MyTestCase(unittest.TestCase):
+
     def _create_HMM(self,initial_state_matrix, transition_matrix, distributions,n_obs):
         initial_state_probs = tf.Variable(initial_state_matrix, dtype=tf.float32)
         # Suma 1
