@@ -1,15 +1,69 @@
 import unittest
-from HMM import GHMM
+from HMM import *
 import pandas as pd
 import numpy as np
 import seaborn
+
 seaborn.set_style('whitegrid')
 from tensorflow_probability import distributions as tfd
 import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy.testing as nptest
-class MyTestCase(unittest.TestCase):
 
+
+class MyTestCase(unittest.TestCase):
+    def setUp(self):
+        self.initial_state_matrix = np.array([0.3, 0.7])
+        self.transition_matrix = np.array([[0.8, 0.2], [0.2, 0.8]])
+        self.distributions = [tfd.Normal(loc=0, scale=1),
+                              tfd.Normal(loc=0.2, scale=2)]
+
+        # Leemos los datos:
+        data = pd.read_excel("../../GDP.xlsx");  # Cambiar el directorio
+        data["Date"] = [int(tiempo) + (tiempo - int(tiempo)) * 2.5 for tiempo in data["Date"]]
+        # data["GDP_LCHANGE"] = data["GDP"].diff()
+        data.loc[0, "Change"] = 0
+        self.observations = data["Change"].to_numpy()
+
+    def _init_NormalHMM(self):
+        self.hmm = NormalHMM(initial_state_matrix=self.initial_state_matrix,
+                        transition_matrix=self.transition_matrix,
+                        medias=[0,0.2],
+                        std=[1,2],
+                        observations=self.observations)
+        """
+        hmm2 = tfp.distributions.HiddenMarkovModel(
+            initial_distribution=tfd.Categorical(probs=self.initial_state_probs),
+            transition_distribution=tfd.Categorical(probs=self.transition_probs),
+            observation_distribution=observation_distribution,
+            num_steps=len(self.observations),
+            validate_args=True
+        )
+        # hmm2.posterior_mode(self.observations.astype(np.float32)).numpy()
+        hmm2.log_prob(self.observations)
+        """
+    def test_log_lik(self):
+        self._init_NormalHMM()
+        log_lik = self.hmm.log_likelihood(self.observations)
+        self.hmm.scaling_algorithm = ScalingAlgorithm.division
+        log_lik2 = self.hmm.log_likelihood(self.observations)
+        print("log-lik value:", log_lik)
+        self.assertAlmostEqual(log_lik, log_lik2,2)
+
+    def test_init_with_n_states(self):
+        hmm = NormalHMM(n_states=3,observations=[-1,1])
+        self.assertTrue(np.all(hmm.initial_state_matrix==1/3))
+        self.assertTrue(np.all(hmm.transition_matrix==1/3))
+        self.assertTrue(np.array_equal([dist.loc for dist in hmm.distributions],[-1,0,1]))
+
+    def test_init_with_observations(self):
+        hmm = NormalHMM(observations=self.observations)
+    def test_train(self):
+        self._init_NormalHMM()
+        self.hmm.train(self.observations,0.8)
+
+
+    """
     def _create_HMM(self,initial_state_matrix, transition_matrix, distributions,n_obs):
         initial_state_probs = tf.Variable(initial_state_matrix, dtype=tf.float32)
         # Suma 1
@@ -41,18 +95,8 @@ class MyTestCase(unittest.TestCase):
                             self.transition_matrix,
                             self.distributions,
                             self.observations)
-    def setUp(self):
-        self.initial_state_matrix = np.array([0.3,0.7])
-        self.transition_matrix = np.array([[0.8,0.2],[0.2,0.8]])
-        self.distributions = [tfd.Normal(loc=0, scale=1),
-                  tfd.Normal(loc=0.2, scale=2)]
 
-        #Leemos los datos:
-        data = pd.read_excel("../../GDP.xlsx"); #Cambiar el directorio
-        data["Date"] = [int(tiempo) + (tiempo - int(tiempo)) * 2.5 for tiempo in data["Date"]]
-        # data["GDP_LCHANGE"] = data["GDP"].diff()
-        data["Change"][0] = 0
-        self.observations = data["Change"]
+        
     def test_createClass(self):
         self.ghmm = GHMM(self.initial_state_matrix,
                             self.transition_matrix,
@@ -63,6 +107,7 @@ class MyTestCase(unittest.TestCase):
         self._init_ghmm()
         alpha, scale, lik = self.ghmm.forward_probs()
         self.assertGreaterEqual(lik, -410)
+        
     def test_backwardProbs(self):
         self._init_ghmm()
         alpha, scale, lik = self.ghmm.forward_probs()
@@ -87,11 +132,7 @@ class MyTestCase(unittest.TestCase):
         self.ghmm.log_baum_welch_normal(verbose=True)
 
 
-
-
-
-
-
+    """
 
 
 if __name__ == '__main__':
