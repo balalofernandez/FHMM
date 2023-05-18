@@ -1,5 +1,5 @@
 import unittest
-from HMM import *
+from HMM.HMM import *
 import pandas as pd
 import numpy as np
 import seaborn
@@ -24,6 +24,7 @@ class MyTestCase(unittest.TestCase):
         # data["GDP_LCHANGE"] = data["GDP"].diff()
         data.loc[0, "Change"] = 0
         self.observations = data["Change"].to_numpy()
+        self.labels = data["NBER"].to_numpy()
 
     def _init_NormalHMM(self):
         self.hmm = NormalHMM(initial_state_matrix=self.initial_state_matrix,
@@ -42,6 +43,11 @@ class MyTestCase(unittest.TestCase):
         # hmm2.posterior_mode(self.observations.astype(np.float32)).numpy()
         hmm2.log_prob(self.observations)
         """
+
+    def test_init_aic(self):
+        self.hmm = NormalHMM(observations=self.observations)
+
+
     def test_log_lik(self):
         self._init_NormalHMM()
         log_lik = self.hmm.log_likelihood(self.observations)
@@ -60,79 +66,25 @@ class MyTestCase(unittest.TestCase):
         hmm = NormalHMM(observations=self.observations)
     def test_train(self):
         self._init_NormalHMM()
-        self.hmm.train(self.observations,0.8)
+        self.hmm.train(self.observations,0.8,labels=self.labels)
+
+    def test_label_train(self):
+        self._init_NormalHMM()
+        self.hmm.train(self.observations,train_size=0.8,labels=self.labels,
+                       algorithm = TrainingAlgorithm.label)
+
+    def test_quantiles(self):
+        self._init_NormalHMM()
+        self.hmm.compute_quantiles(self.observations)
+    def test_forecast(self):
+        self._init_NormalHMM()
+        self.hmm.forecast(3)
+        fig = plt.figure(figsize=(10, 4))
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(self.observations)
+        ax.show()
 
 
-    """
-    def _create_HMM(self,initial_state_matrix, transition_matrix, distributions,n_obs):
-        initial_state_probs = tf.Variable(initial_state_matrix, dtype=tf.float32)
-        # Suma 1
-        initial_state_probs = initial_state_probs / tf.reduce_sum(initial_state_probs)
-
-        # Creamos la matriz de transición
-        transition_probs = tf.Variable(transition_matrix, dtype=tf.float32)
-        # Suma 1
-        transition_probs = transition_probs / tf.reduce_sum(transition_probs, axis=1, keepdims=True)
-
-        starting_loc = tf.Variable([distribution.loc for distribution in distributions], shape=(2,), dtype=tf.float32,
-                                   name="medias")
-        starting_scale = tf.Variable([distribution.scale for distribution in distributions], shape=(2,),
-                                     dtype=tf.float32,
-                                     name="varianzas")
-        observation_distribution = tfd.Normal(loc=starting_loc, scale=starting_scale)
-        # HiddenMarkovModel
-        hmm = tfp.distributions.HiddenMarkovModel(
-            initial_distribution=tfd.Categorical(probs=initial_state_probs),
-            transition_distribution=tfd.Categorical(probs=transition_probs),
-            observation_distribution=observation_distribution,
-            num_steps=n_obs,
-            validate_args=True
-        )
-        return hmm
-
-    def _init_ghmm(self):
-        self.ghmm = GHMM(self.initial_state_matrix,
-                            self.transition_matrix,
-                            self.distributions,
-                            self.observations)
-
-        
-    def test_createClass(self):
-        self.ghmm = GHMM(self.initial_state_matrix,
-                            self.transition_matrix,
-                            self.distributions,
-                            self.observations)
-
-    def test_forwardProbs(self):
-        self._init_ghmm()
-        alpha, scale, lik = self.ghmm.forward_probs()
-        self.assertGreaterEqual(lik, -410)
-        
-    def test_backwardProbs(self):
-        self._init_ghmm()
-        alpha, scale, lik = self.ghmm.forward_probs()
-        beta, start_state_val = self.ghmm.backward_probs(scale)
-    def test_allProbs(self):
-        self._init_ghmm()
-        alpha, scale, lik = self.ghmm.forward_probs()
-        beta, start_state_val = self.ghmm.backward_probs(scale)
-        xi = self.ghmm.xi_probs(alpha,beta)
-        self.ghmm.gamma_probs(xi)
-
-    def test_baum_welch_normal(self):
-        self._init_ghmm()
-        self.ghmm.baum_welch_normal(verbose=True)
-
-    def test_viterbi(self):
-        self._init_ghmm()
-        _,vit = self.ghmm.viterbi(self.observations)
-
-    def test_log_baum_welch(self):
-        self._init_ghmm()
-        self.ghmm.log_baum_welch_normal(verbose=True)
-
-
-    """
 
 
 if __name__ == '__main__':

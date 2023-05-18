@@ -1,4 +1,5 @@
 import numpy as np
+
 def compute_Fbeta_score(true_values, predicted_results, beta = 1):
   # Calculate number of true positives, false positives, true negatives, and false negatives
   true_positives = np.sum(np.logical_and(predicted_results == 1, true_values == 1))
