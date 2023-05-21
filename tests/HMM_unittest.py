@@ -1,8 +1,13 @@
 import unittest
+
+import matplotlib.pyplot as plt
+
 from HMM.HMM import *
 import pandas as pd
 import numpy as np
 import seaborn
+import pymc
+import arviz as az
 
 seaborn.set_style('whitegrid')
 from tensorflow_probability import distributions as tfd
@@ -26,23 +31,13 @@ class MyTestCase(unittest.TestCase):
         self.observations = data["Change"].to_numpy()
         self.labels = data["NBER"].to_numpy()
 
-    def _init_NormalHMM(self):
+    def _init_NormalHMM(self,scaling_algoritm =ScalingAlgorithm.division):
         self.hmm = NormalHMM(initial_state_matrix=self.initial_state_matrix,
                         transition_matrix=self.transition_matrix,
                         medias=[0,0.2],
                         std=[1,2],
-                        observations=self.observations)
-        """
-        hmm2 = tfp.distributions.HiddenMarkovModel(
-            initial_distribution=tfd.Categorical(probs=self.initial_state_probs),
-            transition_distribution=tfd.Categorical(probs=self.transition_probs),
-            observation_distribution=observation_distribution,
-            num_steps=len(self.observations),
-            validate_args=True
-        )
-        # hmm2.posterior_mode(self.observations.astype(np.float32)).numpy()
-        hmm2.log_prob(self.observations)
-        """
+                        observations=self.observations,
+                        scaling_algorithm=scaling_algoritm)
 
     def test_init_aic(self):
         self.hmm = NormalHMM(observations=self.observations)
@@ -64,25 +59,99 @@ class MyTestCase(unittest.TestCase):
 
     def test_init_with_observations(self):
         hmm = NormalHMM(observations=self.observations)
-    def test_train(self):
-        self._init_NormalHMM()
-        self.hmm.train(self.observations,0.8,labels=self.labels)
-
     def test_label_train(self):
         self._init_NormalHMM()
-        self.hmm.train(self.observations,train_size=0.8,labels=self.labels,
-                       algorithm = TrainingAlgorithm.label)
+        log_lik,f1 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.label,
+                       beta=1 )
+        _,f2 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.label,
+                       beta=2)
+        print(self.hmm.initial_state_matrix)
+        print(self.hmm.transition_matrix)
+        print([media.loc for media in self.hmm.distributions])
+        print([media.scale for media in self.hmm.distributions])
+        print(f1,f2)
+        print(log_lik)
 
-    def test_quantiles(self):
+    def test_train(self):
+        self._init_NormalHMM(scaling_algoritm=ScalingAlgorithm.logarithm)
+        log_lik,f1 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.baum_welch,
+                       beta=1 )
+        _,f2 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.baum_welch,
+                       beta=2)
+        print(self.hmm.initial_state_matrix)
+        print(self.hmm.transition_matrix)
+        print([media.loc for media in self.hmm.distributions])
+        print([media.scale for media in self.hmm.distributions])
+        print(f1,f2)
+        print("log_lik:", log_lik)
+        self._init_NormalHMM(scaling_algoritm=ScalingAlgorithm.division)
+        log_lik,f1 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.baum_welch,
+                       beta=1 )
+        _,f2 = self.hmm.train(self.observations,0.7,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.baum_welch,
+                       beta=2)
+        print(self.hmm.initial_state_matrix)
+        print(self.hmm.transition_matrix)
+        print([media.loc for media in self.hmm.distributions])
+        print([media.scale for media in self.hmm.distributions])
+        print(f1,f2)
+        print("log_lik:", log_lik)
+
+    def test_viterbi(self):
         self._init_NormalHMM()
-        self.hmm.compute_quantiles(self.observations)
-    def test_forecast(self):
+        log_lik,f1 = self.hmm.train(self.observations,1,
+                       labels=self.labels,
+                       algorithm=TrainingAlgorithm.baum_welch,
+                       beta=1 )
+        vit = self.hmm.viterbi(self.observations,True)
+        print(vit)
+
+    def test_series_prediction(self):
         self._init_NormalHMM()
-        self.hmm.forecast(3)
+        dists = self.hmm.conditional_dist(self.observations)
         fig = plt.figure(figsize=(10, 4))
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(self.observations)
+        ax.plot([dist.mean() for dist in dists])
         ax.show()
+
+
+    def test_forecast(self):
+        self._init_NormalHMM()
+        time_steps = 20
+        dists = self.hmm.forecast_dist(time_steps)
+        means = [dist.mean() for dist in dists]
+        plt.figure(figsize=(10,5))
+        n_obs = len(self.observations)
+        plt.rcParams.update({'font.size': 18})
+        plt.xlabel("Tiempo")
+        plt.ylabel("Variación del PIB")
+        plt.plot([i for i in range(n_obs)],
+                 self.observations)
+        plt.plot([i for i in range(n_obs,n_obs+time_steps)],
+                 means,
+                 color="red")
+        intervals = np.array([az.hdi(np.sort(dist.sample(10000)),hdi_prob=0.95) for dist in dists])
+        plt.fill_between([i for i in range(n_obs,n_obs+time_steps)],
+                         intervals[:,0],
+                         intervals[:,1],
+                         color="red", alpha=0.3
+                         )
+        plt.show()
+    def test_forecast_states(self):
+        self._init_NormalHMM()
+        states = self.hmm.forecast_states(3)
+        print(states)
 
 
 
