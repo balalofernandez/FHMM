@@ -39,8 +39,10 @@ class MyTestCase(unittest.TestCase):
                         observations=self.observations,
                         scaling_algorithm=scaling_algoritm)
 
+    """
     def test_init_aic(self):
         self.hmm = NormalHMM(observations=self.observations)
+    """
 
 
     def test_log_lik(self):
@@ -57,8 +59,6 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(np.all(hmm.transition_matrix==1/3))
         self.assertTrue(np.array_equal([dist.loc for dist in hmm.distributions],[-1,0,1]))
 
-    def test_init_with_observations(self):
-        hmm = NormalHMM(observations=self.observations)
     def test_label_train(self):
         self._init_NormalHMM()
         log_lik,f1 = self.hmm.train(self.observations,0.7,
@@ -120,10 +120,24 @@ class MyTestCase(unittest.TestCase):
     def test_series_prediction(self):
         self._init_NormalHMM()
         dists = self.hmm.conditional_dist(self.observations)
-        fig = plt.figure(figsize=(10, 4))
-        ax = fig.add_subplot(1, 1, 1)
-        ax.plot([dist.mean() for dist in dists])
-        ax.show()
+        means = [dist.mean() for dist in dists]
+        plt.figure(figsize=(10, 5))
+        n_obs = len(self.observations)
+        plt.rcParams.update({'font.size': 18})
+        plt.xlabel("Tiempo")
+        plt.ylabel("Variación del PIB")
+        plt.plot([i for i in range(n_obs)],
+                 self.observations)
+        plt.plot([i for i in range(n_obs)],
+                 means,
+                 color="red")
+        intervals = np.array([az.hdi(np.sort(dist.sample(10000)), hdi_prob=0.95) for dist in dists])
+        plt.fill_between([i for i in range(n_obs)],
+                         intervals[:, 0],
+                         intervals[:, 1],
+                         color="red", alpha=0.3
+                         )
+        plt.show()
 
 
     def test_forecast(self):

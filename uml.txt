@@ -1,0 +1,108 @@
+@startuml
+!theme vibrant
+top to bottom direction
+skinparam linetype ortho
+
+class node7 as "HMM.HMM.CategoricalHMM" {
+   transition_matrix: List[List[float]]
+   log_transition: List[List[float]]
+   initial_state_matrix: List[float]
+   log_start: List[float]
+   observations: List[Any]
+   n_states: int
+   distributions: List[tensorflow_probability.python.distributions]
+   scaling_algorithm: HMM.ScalingAlgorithm
+   - __init__(self, initial_state_matrix: List[float] = None,\n transition_matrix: List[List[float]] = None,\n probabilities:List[List[float]]=None,\n n_states: int = 0, observations: List[Any]= None,\n scaling_algorithm: ScalingAlgorithm = ScalingAlgorithm.logarithm,\n initialization = DefaultInitialization.bic): 
+   - _initialize_parameters(self): 
+   + train_baum_welch(self, observations: List[Any] = None,\n n_iter=30, verbose=False): 
+   + log_train_baum_welch(self, observations: List[Any] = None,\n n_iter=20, verbose=False): 
+   + label_train(self, observations: List[Any], labels:List[int]): 
+   + forecast_dist(self,times):
++ conditional_dist(self,observations: List[Any]):
+}
+class node6 as "HMM.HMM.HMM" {
+   transition_matrix: List[List[float]]
+   log_transition: List[List[float]]
+   initial_state_matrix: List[float]
+   log_start: List[float]
+   observations: List[Any]
+   n_states: int
+   distributions: List[tensorflow_probability.python.distributions]
+   scaling_algorithm: HMM.ScalingAlgorithm
+   - __init__(self, initial_state_matrix=None, transition_matrix=None, distributions=None,\n n_states: int = 0, observations: List[Any] = None,\n scaling_algorithm: ScalingAlgorithm = ScalingAlgorithm.logarithm,\n initialization = DefaultInitialization.bic): 
+   - _forward_probs(self): 
+   - _backward_probs(self, scale): 
+   - _xi_probs(self, forward, backward): 
+   - _gamma_probs(self, xi): 
+   - _forward_logprob(self): 
+   - _backward_logprob(self): 
+   - _gamma_logprob(self, alf, beta): 
+   - _xi_logprob(self, log_forward, log_backward): 
+   + viterbi(self, observations: List[Any]=None): 
+   + train(self, observations: List[Any], train_size: float, labels: List[int] = None, iterations=30,\n verbose = True, algorithm=TrainingAlgorithm.baum_welch): 
+   + AIC(self, log_lik:float, num_params:int): 
+   + BIC(self,log_lik:float, num_params:int, num_obs:int): 
+   - _initialize_parameters_aic(self, observations: List[Any],max_params = 5): 
+   - _initialize_parameters_bic(self, observations: List[Any],max_params = 5): 
+   + set_parameters(self, param_dict): 
+   + log_likelihood(self, observations: List[Any] = None): 
+   + forecast_values(self,times):
+   + forecast_states(self,times):
+   + {abstract} forecast_dist(self,times):
+   - {abstract} _initialize_parameters(self): 
++ {abstract} conditional_dist(self,observations: List[Any]):
++ {abstract} log_train_baum_welch(self, observations:  List[Any] = None, n_iter=20, verbose=False) ->List[float]:
++ {abstract} label_train(self, observations: List[Any], labels:List[int]) -> List[float]:
++ {abstract} train_baum_welch(self, observations:  List[Any] = None, n_iter=30, verbose=False) ->List[float]:
+        
+    
+}
+class node2 as "HMM.HMM.NormalHMM" {
+   transition_matrix: List[List[float]]
+   log_transition: List[List[float]]
+   initial_state_matrix: List[float]
+   log_start: List[float]
+   observations: List[float]
+   n_states: int
+   distributions: List[tensorflow_probability.python.distributions]
+   scaling_algorithm: HMM.ScalingAlgorithm
+   - __init__(self, initial_state_matrix: List[float] = None,\n transition_matrix:List[List[float]] = None,\n medias: List[float] = None, std: List[float] = None,\n n_states: int = 0, observations: List[float] = None,\n scaling_algorithm: ScalingAlgorithm = ScalingAlgorithm.logarithm,\n initialization = DefaultInitialization.bic): 
+   - _initialize_parameters(self): 
+   + train_baum_welch(self, observations: List[float] = None,\n n_iter=30, verbose=False): 
+   + log_train_baum_welch(self, observations: List[float] = None,\n n_iter=20, verbose=False): 
+   + label_train(self, observations: List[float], labels:List[int]): 
+   + forecast_dist(self,times):
+   + conditional_dist(self,observations: List[float]):
+}
+
+enum node3 as "HMM.HMM.ScalingAlgorithm" {
+   logarithm: 
+   division: 
+}
+enum node0 as "HMM.HMM.TrainingAlgorithm" {
+   baum_welch: 
+   label: 
+}
+enum node5 as "HMM.HMM.DefaultInitialization" {
+   aic: 
+   bic: 
+}
+class node9 as "enum.Enum" {
+}
+
+node0   -[#595959,plain]-^  node9 
+node5   -[#595959,plain]-^  node9  
+node3   -[#595959,plain]-^  node9  
+node9   -[#595959,plain]-^  object
+node6   -[#595959,plain]-^  object 
+
+node7   -[#595959,plain]-^  node6  
+node2   -[#595959,plain]-^  node6   
+
+remove object
+remove node9 
+remove node5   
+remove node3   
+remove node0   
+
+@enduml

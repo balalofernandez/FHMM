@@ -603,15 +603,17 @@ class NormalHMM(HMM):
                 d[j,t] = special.logsumexp(log_alfa_aux)+log_beta[j,t]
 
         #Calculamos el vector de pesos w
-        w = np.exp([[d[i,t] - special.logsumexp(d[:,t]) for t in range(n_obs)] for i in range(self.n_states)])
+        w = np.exp([[d[i,t] - special.logsumexp(d[:,t]) for t in range(n_obs)] for i in range(self.n_states)]).astype(np.float32)
+        medias = np.array([dist.loc for dist in self.distributions]).astype(np.float32)
+        std = np.array([dist.scale for dist in self.distributions]).astype(np.float32)
         for t in range(n_obs):
             conditional_distributions.append(tfd.MixtureSameFamily(
-                mixture_distribution=tfd.Categorical(probs=w),
+                mixture_distribution=tfd.Categorical(probs=w[:,t]),
                 components_distribution= tfd.Normal(
-                    loc=[dist.loc for dist in self.distributions],
-                    scale=[dist.scale for dist in self.distributions]
-                )
-            ))
+                    loc=tf.Variable(medias, dtype=tf.float32, name = "medias"),
+                    scale=tf.Variable(std, dtype=tf.float32, name = "varianzas")
+                ))
+            )
         return conditional_distributions
 
     def forecast_dist(self, times:int):
