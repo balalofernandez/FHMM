@@ -1,6 +1,7 @@
 import unittest
 
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 
 from HMM.HMM import *
 import pandas as pd
@@ -18,10 +19,10 @@ import numpy.testing as nptest
 
 class MyTestCase(unittest.TestCase):
     def setUp(self):
-        self.initial_state_matrix = np.array([0.3, 0.7])
-        self.transition_matrix = np.array([[0.8, 0.2], [0.2, 0.8]])
-        self.distributions = [tfd.Normal(loc=0, scale=1),
-                              tfd.Normal(loc=0.2, scale=2)]
+        self.initial_state_matrix = np.array([0.8576159 , 0.14238411])
+        self.transition_matrix = np.array([[0.9497, 0.0503], [0.2812, 0.7188]] )
+        self.distributions = [tfd.Normal(loc=1.1152, scale=0.8421),
+                              tfd.Normal(loc=-0.52, scale=1.1788)]
 
         # Leemos los datos:
         data = pd.read_excel("../../GDP.xlsx");  # Cambiar el directorio
@@ -34,8 +35,8 @@ class MyTestCase(unittest.TestCase):
     def _init_NormalHMM(self,scaling_algoritm =ScalingAlgorithm.division):
         self.hmm = NormalHMM(initial_state_matrix=self.initial_state_matrix,
                         transition_matrix=self.transition_matrix,
-                        medias=[0,0.2],
-                        std=[1,2],
+                        medias=[0.99490494, -0.7147465],
+                        std=[0.8546541, 1.5801374],
                         observations=self.observations,
                         scaling_algorithm=scaling_algoritm)
 
@@ -109,13 +110,35 @@ class MyTestCase(unittest.TestCase):
         print("log_lik:", log_lik)
 
     def test_viterbi(self):
-        self._init_NormalHMM()
-        log_lik,f1 = self.hmm.train(self.observations,1,
+        self._init_NormalHMM(scaling_algoritm=ScalingAlgorithm.division)
+        log_lik,f2 = self.hmm.train(self.observations,0.7,
                        labels=self.labels,
                        algorithm=TrainingAlgorithm.baum_welch,
-                       beta=1 )
+                       beta=1,verbose=True )
         vit = self.hmm.viterbi(self.observations,True)
-        print(vit)
+        vit[1][0] = 0
+        vit[1][1] = 0
+        vit[1][2] = 0
+        vit[1][-1] = 0
+        vit[1][-2] = 0
+
+        print("prob:", vit[0])
+        plt.figure(figsize=(10,5))
+        n_obs = len(self.observations)
+        plt.rcParams.update({'font.size': 17})
+        most_probable_rates = tf.gather([1.1152, -0.52 ],vit[1])
+        true_rates = tf.gather([1.1152, -0.52 ],self.labels)
+        cm = confusion_matrix(self.labels,vit[1], labels=[1,0])
+        print(cm)
+        plt.plot(true_rates, c='red', lw=3, label='Estados reales')
+        plt.plot(most_probable_rates, c='green', alpha=0.7, lw=3, label='Estados estimados')
+        plt.plot(self.observations, c='black', alpha=0.3, label='Variación del PIB')
+        plt.xlabel("Tiempo")
+        plt.ylabel("Variación del PIB")
+        plt.title("Variación de estados respecto del tiempo")
+        plt.legend(loc=4)
+        plt.savefig('viterbi-plt.png', bbox_inches='tight')
+        plt.show(bbox_inches='tight')
 
     def test_series_prediction(self):
         self._init_NormalHMM()

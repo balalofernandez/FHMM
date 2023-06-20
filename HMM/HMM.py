@@ -222,7 +222,7 @@ class HMM():
         n_states = len(self.log_start)
         n_obs = len(self.observations)
         # Initialize base cases (t == 0)
-        matrix = np.array([dist.prob(self.observations[0]) for dist in self.distributions])
+        matrix = np.array([dist.log_prob(self.observations[0]) for dist in self.distributions])
         for i in range(n_states):
             vit[0][i] = self.log_start[i] + matrix[i]
             path[i] = [i]
@@ -232,15 +232,16 @@ class HMM():
             vit.append({})
             updated_path = {}
             for i in range(n_states):
-                (prob, state) = max(
-                    (
-                    vit[t - 1][k] + self.log_transition[k][i] + self.distributions[i].log_prob(self.observations[t]), k) \
-                    for k in range(n_states))
-                vit[t][i] = prob
+                #(prob, state) = max(
+                #    (vit[t - 1][k] + self.log_transition[k][i] + self.distributions[i].log_prob(self.observations[t]), k) for k in range(n_states))
+                states_probs = [(vit[t - 1][k] + self.log_transition[k][i] + self.distributions[i].log_prob(self.observations[t]), k) for k in range(n_states)]
+                (prob, state) = max(states_probs)
+                vit[t][i] = prob.numpy()
                 updated_path[i] = path[state] + [i]
             # Nos quedamos con el mejor camino
             path = updated_path
-        (prob, state) = max((vit[0][y], y) for y in range(n_states))
+
+        (prob, state) = max((vit[-1][y], y) for y in range(n_states))
         if(state_probs):
             alf,_ = self._forward_logprob()
             beta,_ = self._backward_logprob()
@@ -453,10 +454,6 @@ class NormalHMM(HMM):
                     for t in range(n_obs - 1):
                         a[j, i] = a[j, i] + xi[j, t, i]
                         denomenator_a += gamma[j, t]
-
-                    denomenator_b = [xi[j, t_x, i_x] for t_x in range(n_obs - 1) for i_x in range(self.n_states)]
-                    denomenator_b = sum(denomenator_b)
-
                     if (denomenator_a == 0):
                         a[j, i] = 0
                     else:
@@ -483,15 +480,15 @@ class NormalHMM(HMM):
                     den += gamma[i, t]
                 sigma[i] = np.sqrt(num / den)
 
+            if (verbose): print("start:",self.initial_state_matrix)
+
             if (verbose): print('\nMatrix a:\n')
             if (verbose): print(np.matrix(a.round(decimals=4)))
             self.transition_matrix = a
             self.distributions = [tfd.Normal(loc=loc, scale=scale)
                                   for loc, scale in zip(mu, sigma)]
-            if (verbose): print(self.distributions[0].loc, "\n",
-                                self.distributions[0].scale, "\n",
-                                self.distributions[1].loc, "\n",
-                                self.distributions[1].scale)
+            if (verbose): print("medias:", self.distributions[0].loc,self.distributions[1].loc, "\n",
+                                "std:",self.distributions[1].scale,self.distributions[1].scale)
             new_alf, new_scale, new_lik_alpha = self._forward_probs()
             new_log_lik = np.sum(np.log(new_scale))
             if (verbose): print('New log-verosim: ', new_log_lik)
